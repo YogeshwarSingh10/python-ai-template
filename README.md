@@ -23,7 +23,7 @@ python tests/smoke_test.py     # smoke test (makes a real LLM call)
 
 ## Structure
 
-```
+```text
 src/my_project/
 ├── config.py        # single bootstrap — env loading + logging setup
 ├── main.py          # entry point, call config.setup() first
@@ -38,4 +38,4 @@ src/my_project/
 ## Swapping models
 
 Change `DEFAULT_MODEL` in `.env`. Any OpenRouter-supported model string works.
-See https://openrouter.ai/models for available models.
+See [OpenRouter models](https://openrouter.ai/models) for available models.
