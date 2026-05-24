@@ -1,0 +1,36 @@
+# Rules for AI engineering / LLM pipeline work
+# For ML/training projects, use python-ml-template instead
+
+## Dependencies
+- Add new dependencies to pyproject.toml under [project] dependencies
+
+## Logging and config
+- config.py handles both env loading and logging setup — it is the single bootstrap file
+- Call config.setup() once at the top of main.py before anything else
+- Use get_logger(__name__) from config in every module, never use print()
+
+## LLM calls
+- All LLM calls go through src/my_project/services/llm_client.py
+- llm_client.py implements the BaseLLMClient ABC defined in models/
+- Use OpenRouter as the default provider via OpenAI-compatible API (openai package, custom base_url)
+- Default model is set in config.py as DEFAULT_MODEL and passed through — never hardcoded at call sites
+- Model must always be a parameter — never hardcoded inside functions
+
+## Data
+- Use Pydantic BaseModel for all data passed between modules — no raw dicts
+- All ABCs and shared interfaces are defined in models/ alongside Pydantic schemas
+
+## Structure and design
+- All external integrations (LLM, vector stores, embedders) sit in services/ and implement an ABC from models/
+- This makes every external dependency swappable without touching pipeline code
+- Pipelines in core/ only depend on ABCs, never on concrete service implementations
+- Business logic → src/my_project/core/
+- External integrations → src/my_project/services/
+- Pydantic schemas + ABCs → src/my_project/models/
+- Pure stateless helpers (string ops, parsing, formatting) → src/my_project/utils/
+- Bootstrap (env + logging) → src/my_project/config.py
+- Entry point → src/my_project/main.py
+
+## Validation — run after every significant change
+- Type check: pyright src/
+- Smoke test: python tests/smoke_test.py
