@@ -1,20 +1,38 @@
 [project]
 name = "my-project"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+
 dependencies = [
     "openai",
     "pydantic>=2.0",
+    "pydantic-settings>=2.0",
     "python-dotenv",
     "pyyaml",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "pyright",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 src = ["src"]
 
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "basic"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

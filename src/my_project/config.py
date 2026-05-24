@@ -1,22 +1,29 @@
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 import yaml
-from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic import BaseModel, Field
+from pydantic.fields import FieldInfo
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
+
 class ColorFormatter(logging.Formatter):
     RESET = "\033[0m"
     COLORS = {
-        logging.DEBUG:    "\033[90m",
-        logging.INFO:     "\033[35m",
-        logging.WARNING:  "\033[93m",
-        logging.ERROR:    "\033[91m",
+        logging.DEBUG: "\033[90m",
+        logging.INFO: "\033[35m",
+        logging.WARNING: "\033[93m",
+        logging.ERROR: "\033[91m",
         logging.CRITICAL: "\033[1;91m",
     }
 
@@ -49,30 +56,69 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# ── YAML settings source ──────────────────────────────────────────────────────
 
-def _load_yaml(path: str = "config.yaml") -> dict:
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"config.yaml not found at: {path}")
-    with open(path) as f:
-        return yaml.safe_load(f) or {}
-
-cfg: dict = _load_yaml()
+_CONFIG_YAML = Path(__file__).parent.parent.parent / "config.yaml"
 
 
-# ── Secrets (from .env) ───────────────────────────────────────────────────────
+class YamlConfigSettingsSource(PydanticBaseSettingsSource):
+    """Loads non-secret config from config.yaml at the project root."""
 
-def get_env(key: str) -> str:
-    value = os.getenv(key)
-    if not value:
-        raise ValueError(f"Missing required environment variable: {key}")
-    return value
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[None, str, bool]:
+        return None, field_name, False  # handled by __call__
+
+    def __call__(self) -> dict[str, Any]:  # type: ignore[override]  # yaml.safe_load stubs return Any; signature forced by PydanticBaseSettingsSource ABC
+        if not _CONFIG_YAML.exists():
+            raise FileNotFoundError(f"config.yaml not found at: {_CONFIG_YAML}")
+        with _CONFIG_YAML.open() as f:
+            return yaml.safe_load(f) or {}
 
 
-OPENROUTER_API_KEY: str = get_env("OPENROUTER_API_KEY")
+# ── Settings models ───────────────────────────────────────────────────────────
 
 
-# ── Non-secret config (from config.yaml) ─────────────────────────────────────
+class LLMSettings(BaseModel):
+    base_url: str
+    default_model: str
+    temperature: float = Field(ge=0.0, le=2.0)
+    max_tokens: int = Field(gt=0)
 
-OPENROUTER_BASE_URL: str = cfg["llm"]["base_url"]
-DEFAULT_MODEL: str = cfg["llm"]["default_model"]
+
+class Settings(BaseSettings):
+    """
+    Single source of truth for all configuration.
+
+    Secrets  → .env / environment variables  (e.g. OPENROUTER_API_KEY)
+    Non-secrets → config.yaml                (e.g. llm.default_model)
+
+    Override any config.yaml value at runtime via env var:
+        LLM__DEFAULT_MODEL=openai/gpt-4o pytest
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+    )
+
+    # Secrets (from .env / env vars only)
+    openrouter_api_key: str
+
+    # Non-secrets (from config.yaml, overridable via env vars)
+    llm: LLMSettings
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        **kwargs: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            kwargs["env_settings"],
+            kwargs["dotenv_settings"],
+            YamlConfigSettingsSource(settings_cls),
+            kwargs["init_settings"],
+        )
+
+
+settings = Settings()  # type: ignore[call-arg]  # fields are populated from env/yaml sources

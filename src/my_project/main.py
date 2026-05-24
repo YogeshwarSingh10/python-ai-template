@@ -1,13 +1,15 @@
-from my_project import config
+import asyncio
 
-config.setup()
+from my_project.config import get_logger, setup_logging
 
-logger = config.get_logger(__name__)
+setup_logging()
+
+logger = get_logger(__name__)
 
 
-def main() -> None:
+async def main() -> None:
     logger.info("Starting...")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

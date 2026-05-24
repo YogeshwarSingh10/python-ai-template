@@ -1,7 +1,21 @@
-from openai import OpenAI
+from typing import cast
 
-from my_project import config
-from my_project.models.base import BaseLLMClient, LLMResponse, Message
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
+
+from my_project.config import settings
+from my_project.models.base import (
+    BaseLLMClient,
+    LLMResponse,
+    Message,
+)
+
+
+def _to_openai_messages(messages: list[Message]) -> list[ChatCompletionMessageParam]:
+    return [
+        cast(ChatCompletionMessageParam, {"role": msg.role, "content": msg.content})
+        for msg in messages
+    ]
 
 
 class OpenRouterClient(BaseLLMClient):
@@ -11,19 +25,22 @@ class OpenRouterClient(BaseLLMClient):
     """
 
     def __init__(self) -> None:
-        self._client = OpenAI(
-            api_key=config.OPENROUTER_API_KEY,
-            base_url=config.OPENROUTER_BASE_URL,
+        self._client = AsyncOpenAI(
+            api_key=settings.openrouter_api_key,
+            base_url=settings.llm.base_url,
         )
 
-    def complete(
+    async def complete(
         self,
         messages: list[Message],
-        model: str = config.DEFAULT_MODEL,
+        model: str = settings.llm.default_model,
+        max_tokens: int | None = None,
     ) -> LLMResponse:
-        response = self._client.chat.completions.create(
+        response = await self._client.chat.completions.create(
             model=model,
-            messages=[m.model_dump() for m in messages],
+            messages=_to_openai_messages(messages),
+            max_tokens=max_tokens if max_tokens is not None else settings.llm.max_tokens,
+            temperature=settings.llm.temperature,
         )
         choice = response.choices[0]
         usage = response.usage

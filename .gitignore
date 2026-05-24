@@ -9,6 +9,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.ruff_cache/
+.pytest_cache/
 
 # Virtual envs (if accidentally created)
 .venv/
